@@ -1,5 +1,6 @@
 #define DLLEXPORT __declspec(dllexport)
 #include "InputEventHandler.h"
+#include "UI.h"
 
 void InitializeLog([[maybe_unused]] spdlog::level::level_enum a_level = spdlog::level::info)
 {
@@ -45,6 +46,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 {
 	if (a_msg->type == SKSE::MessagingInterface::kDataLoaded) {
 		InitializeEventHandler();
+		UI::Register();
 	}
 }
 

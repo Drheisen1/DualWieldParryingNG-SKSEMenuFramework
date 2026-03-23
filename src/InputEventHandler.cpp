@@ -1,5 +1,4 @@
 #include <SKSE/SKSE.h>
-
 #include "InputEventHandler.h"
 
 using namespace DualWieldParryingNG;

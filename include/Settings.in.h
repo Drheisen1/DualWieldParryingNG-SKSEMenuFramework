@@ -1,4 +1,5 @@
 #pragma once
+
 #define SETTINGS_INI_FILE (L"Data/SKSE/Plugins/@PROJECT_NAME@.ini")
 
 // Thanks to: https://github.com/powerof3/CLibUtil
@@ -28,28 +29,30 @@ namespace string {
         return {range.begin(), range.end()};
     }
 
-    // https://stackoverflow.com/a/35452044
     inline std::string join(const std::vector<std::string>& a_vec, std::string_view a_delimiter) {
         return std::accumulate(a_vec.begin(), a_vec.end(), std::string{},
-                               [a_delimiter](const auto& str1, const auto& str2) {
-                                   return str1.empty() ? str2 : str1 + a_delimiter.data() + str2;
-                               });
+            [a_delimiter](const auto& str1, const auto& str2) {
+                return str1.empty() ? str2 : str1 + a_delimiter.data() + str2;
+            });
     }
-};  // namespace string
+}
 
 class Settings {
 public:
     [[nodiscard]] static Settings* GetSingleton();
 
     void Load();
+    void Save();  
 
     struct DualWieldParrying {
         void Load(CSimpleIniA& a_ini);
+        void Save(CSimpleIniA& a_ini) const;
 
+        // Defaults aligned with NG semantics
         uint32_t parryKey{47};
-        uint32_t parryKey2{1'000'000};
-        uint32_t modifier{1'000'000};
-        uint32_t modifier2{1'000'000};
+        uint32_t parryKey2{1'000'000};   // disabled second key
+        uint32_t modifier{300};          // no modifier
+        uint32_t modifier2{300};         // no modifier
         bool allowBlockingDuringDialogue{false};
     } dualWieldParryingSettings;
 
@@ -66,8 +69,14 @@ private:
 
         // Thanks to: https://github.com/powerof3/CLibUtil
         template <class T>
-        static T& get_value(CSimpleIniA& a_ini, T& a_value, const char* a_section, const char* a_key, const char* a_comment,
-                            const char* a_delimiter = R"(|)") {
+        static T& get_value(
+            CSimpleIniA& a_ini,
+            T& a_value,
+            const char* a_section,
+            const char* a_key,
+            const char* a_comment,
+            const char* a_delimiter = R"(|)")
+        {
             if constexpr (std::is_same_v<T, bool>) {
                 a_value = a_ini.GetBoolValue(a_section, a_key, a_value);
                 a_ini.SetBoolValue(a_section, a_key, a_value, a_comment);
@@ -79,11 +88,13 @@ private:
                     a_ini.GetValue(a_section, a_key, std::to_string(std::to_underlying(a_value)).c_str()));
                 a_ini.SetValue(a_section, a_key, std::to_string(std::to_underlying(a_value)).c_str(), a_comment);
             } else if constexpr (std::is_arithmetic_v<T>) {
-                a_value = string::template to_num<T>(a_ini.GetValue(a_section, a_key, std::to_string(a_value).c_str()));
+                a_value = string::template to_num<T>(
+                    a_ini.GetValue(a_section, a_key, std::to_string(a_value).c_str()));
                 a_ini.SetValue(a_section, a_key, std::to_string(a_value).c_str(), a_comment);
             } else if constexpr (std::is_same_v<T, std::vector<std::string>>) {
-                a_value = string::split(a_ini.GetValue(a_section, a_key, string::join(a_value, a_delimiter).c_str()),
-                                        a_delimiter);
+                a_value = string::split(
+                    a_ini.GetValue(a_section, a_key, string::join(a_value, a_delimiter).c_str()),
+                    a_delimiter);
                 a_ini.SetValue(a_section, a_key, string::join(a_value, a_delimiter).c_str(), a_comment);
             } else {
                 a_value = a_ini.GetValue(a_section, a_key, a_value.c_str());
