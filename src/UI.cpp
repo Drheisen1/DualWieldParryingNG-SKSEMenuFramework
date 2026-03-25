@@ -48,15 +48,14 @@ namespace
 			{ "Keyboard X", 45 },
 			{ "Keyboard C", 46 },
 
-			{ "Mouse Wheel Up", 256 },
-			{ "Mouse Left", 257 },
-			{ "Mouse Right", 258 },
-			{ "Mouse Middle", 259 },
+			{ "Mouse Left", 256 },
+			{ "Mouse Right", 257 },
+			{ "Mouse Middle", 258 },
+			{ "Mouse Button 3", 259 },
 			{ "Mouse Button 4", 260 },
 			{ "Mouse Button 5", 261 },
 			{ "Mouse Button 6", 262 },
 			{ "Mouse Button 7", 263 },
-			{ "Mouse Wheel Down", 265 },
 
 			{ "Gamepad Left Shoulder", 274 },
 			{ "Gamepad Right Shoulder", 275 },
@@ -148,13 +147,13 @@ namespace
 			return "Keyboard Left Alt";
 
 		case 256:
-			return "Mouse Wheel Up";
-		case 257:
 			return "Mouse Left";
-		case 258:
+		case 257:
 			return "Mouse Right";
-		case 259:
+		case 258:
 			return "Mouse Middle";
+		case 259:
+			return "Mouse Button 3";
 		case 260:
 			return "Mouse Button 4";
 		case 261:
@@ -163,8 +162,6 @@ namespace
 			return "Mouse Button 6";
 		case 263:
 			return "Mouse Button 7";
-		case 265:
-			return "Mouse Wheel Down";
 
 		case 274:
 			return "Gamepad Left Shoulder";
