@@ -1,5 +1,27 @@
 #include "Settings.h"
 
+#include "InputCode.h"
+
+namespace
+{
+	void LoadKeyCode(
+		CSimpleIniA& a_ini,
+		std::uint32_t& a_value,
+		const char* a_section,
+		const char* a_key,
+		const char* a_comment)
+	{
+		const auto* rawValue = a_ini.GetValue(a_section, a_key, std::to_string(a_value).c_str());
+		if (const auto parsed = DualWieldParryingNG::InputCode::FromString(rawValue ? rawValue : "")) {
+			a_value = *parsed;
+		} else {
+			logger::warn("Invalid key code value '{}' for {}.{}, keeping {}", rawValue ? rawValue : "", a_section, a_key, a_value);
+		}
+
+		a_ini.SetValue(a_section, a_key, std::to_string(a_value).c_str(), a_comment);
+	}
+}
+
 Settings* Settings::GetSingleton()
 {
 	static Settings singleton;
@@ -44,34 +66,34 @@ void Settings::DualWieldParrying::Load(CSimpleIniA& a_ini)
 {
 	static const char* section = "DualWieldParrying";
 
-	detail::get_value(
+	LoadKeyCode(
 		a_ini,
 		parryKey,
 		section,
 		"ParryKey",
-		";Code of key to use for parrying. See https://www.creationkit.com/index.php?title=Input_Script#DXScanCodes");
+		";Code or alias of key to use for parrying. See https://www.nexusmods.com/skyrimspecialedition/articles/7704");
 
-	detail::get_value(
+	LoadKeyCode(
 		a_ini,
 		parryKey2,
 		section,
 		"ParryKey2",
 		";Optional second keybinding. Use a big number like 1000000 if you don't want a second keybinding.");
 
-	detail::get_value(
+	LoadKeyCode(
 		a_ini,
 		modifier,
 		section,
 		"Modifier",
-		";Optional modifier, which must be held in addition to pressing the Parry key. Use a big number "
+		";Optional modifier code or alias, which must be held in addition to pressing the Parry key. Use a big number "
 		"(anything greater than or equal to 300) if you don't want a modifier key.");
 
-	detail::get_value(
+	LoadKeyCode(
 		a_ini,
 		modifier2,
 		section,
 		"Modifier2",
-		";Optional modifier, which must be held in addition to pressing the second Parry key. Use a big number "
+		";Optional modifier code or alias, which must be held in addition to pressing the second Parry key. Use a big number "
 		"(anything greater than or equal to 300) if you don't want a modifier key.");
 
 	detail::get_value(
@@ -90,7 +112,7 @@ void Settings::DualWieldParrying::Save(CSimpleIniA& a_ini) const
 		section,
 		"ParryKey",
 		std::to_string(parryKey).c_str(),
-		";Code of key to use for parrying. See https://www.creationkit.com/index.php?title=Input_Script#DXScanCodes");
+		";Code or alias of key to use for parrying. See https://www.nexusmods.com/skyrimspecialedition/articles/7704");
 
 	a_ini.SetValue(
 		section,
@@ -102,14 +124,14 @@ void Settings::DualWieldParrying::Save(CSimpleIniA& a_ini) const
 		section,
 		"Modifier",
 		std::to_string(modifier).c_str(),
-		";Optional modifier, which must be held in addition to pressing the Parry key. Use a big number "
+		";Optional modifier code or alias, which must be held in addition to pressing the Parry key. Use a big number "
 		"(anything greater than or equal to 300) if you don't want a modifier key.");
 
 	a_ini.SetValue(
 		section,
 		"Modifier2",
 		std::to_string(modifier2).c_str(),
-		";Optional modifier, which must be held in addition to pressing the second Parry key. Use a big number "
+		";Optional modifier code or alias, which must be held in addition to pressing the second Parry key. Use a big number "
 		"(anything greater than or equal to 300) if you don't want a modifier key.");
 
 	a_ini.SetBoolValue(

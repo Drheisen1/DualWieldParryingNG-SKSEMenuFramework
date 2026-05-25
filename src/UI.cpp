@@ -1,17 +1,20 @@
 #include "PCH.h"
+
 #include "UI.h"
+
+#include "InputCode.h"
 #include "SKSEMenuFramework.h"
 #include "Settings.h"
 
 namespace
 {
-	constexpr std::uint32_t kDisabledKey = 1'000'000;
-	constexpr std::uint32_t kNoModifier = 300;
-
-	struct KeyOption
+	enum class CaptureTarget
 	{
-		const char* label;
-		std::uint32_t code;
+		None,
+		ParryKey,
+		ParryKey2,
+		Modifier,
+		Modifier2
 	};
 
 	struct MenuState
@@ -21,10 +24,13 @@ namespace
 	};
 
 	MenuState g_menuState{};
+	std::atomic<CaptureTarget> g_captureTarget{ CaptureTarget::None };
+	SKSEMenuFramework::Model::InputEvent* g_inputEvent{ nullptr };
 
 	void SyncFromSettings()
 	{
 		g_menuState.pending = Settings::GetSingleton()->dualWieldParryingSettings;
+		g_captureTarget.store(CaptureTarget::None);
 	}
 
 	void ApplyToSettings()
@@ -32,187 +38,103 @@ namespace
 		Settings::GetSingleton()->dualWieldParryingSettings = g_menuState.pending;
 	}
 
-	const std::vector<KeyOption>& GetParryKeyOptions()
-	{
-		static const std::vector<KeyOption> options{
-			{ "Keyboard V", 47 },
-			{ "Keyboard Left Alt", 56 },
-			{ "Keyboard Left Ctrl", 29 },
-			{ "Keyboard Left Shift", 42 },
-			{ "Keyboard Right Shift", 54 },
-			{ "Keyboard Q", 16 },
-			{ "Keyboard E", 18 },
-			{ "Keyboard R", 19 },
-			{ "Keyboard F", 33 },
-			{ "Keyboard Z", 44 },
-			{ "Keyboard X", 45 },
-			{ "Keyboard C", 46 },
-
-			{ "Mouse Left", 256 },
-			{ "Mouse Right", 257 },
-			{ "Mouse Middle", 258 },
-			{ "Mouse Button 3", 259 },
-			{ "Mouse Button 4", 260 },
-			{ "Mouse Button 5", 261 },
-			{ "Mouse Button 6", 262 },
-			{ "Mouse Button 7", 263 },
-
-			{ "Gamepad Left Shoulder", 274 },
-			{ "Gamepad Right Shoulder", 275 },
-			{ "Gamepad A", 276 },
-			{ "Gamepad B", 277 },
-			{ "Gamepad X", 278 },
-			{ "Gamepad Y", 279 },
-			{ "Gamepad Left Trigger", 280 },
-			{ "Gamepad Right Trigger", 281 },
-
-			{ "Disabled", kDisabledKey }
-		};
-
-		return options;
-	}
-
-	const std::vector<KeyOption>& GetModifierOptions()
-	{
-		static const std::vector<KeyOption> options{
-			{ "None", kNoModifier },
-
-			{ "Keyboard Left Alt", 56 },
-			{ "Keyboard Left Ctrl", 29 },
-			{ "Keyboard Left Shift", 42 },
-			{ "Keyboard Right Shift", 54 },
-			{ "Keyboard Q", 16 },
-			{ "Keyboard E", 18 },
-			{ "Keyboard R", 19 },
-			{ "Keyboard F", 33 },
-			{ "Keyboard Z", 44 },
-			{ "Keyboard X", 45 },
-			{ "Keyboard C", 46 },
-
-			{ "Mouse Left", 257 },
-			{ "Mouse Right", 258 },
-			{ "Mouse Middle", 259 },
-			{ "Mouse Button 4", 260 },
-			{ "Mouse Button 5", 261 },
-			{ "Mouse Button 6", 262 },
-			{ "Mouse Button 7", 263 },
-
-			{ "Gamepad Left Shoulder", 274 },
-			{ "Gamepad Right Shoulder", 275 },
-			{ "Gamepad A", 276 },
-			{ "Gamepad B", 277 },
-			{ "Gamepad X", 278 },
-			{ "Gamepad Y", 279 },
-			{ "Gamepad Left Trigger", 280 },
-			{ "Gamepad Right Trigger", 281 }
-		};
-
-		return options;
-	}
-
-	std::string KeyCodeToString(std::uint32_t keyCode, bool isModifier)
-	{
-		if (!isModifier && keyCode >= kDisabledKey) {
-			return "Disabled";
-		}
-
-		if (isModifier && keyCode >= kNoModifier) {
-			return "None";
-		}
-
-		switch (keyCode) {
-		case 16:
-			return "Keyboard Q";
-		case 18:
-			return "Keyboard E";
-		case 19:
-			return "Keyboard R";
-		case 29:
-			return "Keyboard Left Ctrl";
-		case 33:
-			return "Keyboard F";
-		case 42:
-			return "Keyboard Left Shift";
-		case 44:
-			return "Keyboard Z";
-		case 45:
-			return "Keyboard X";
-		case 46:
-			return "Keyboard C";
-		case 47:
-			return "Keyboard V";
-		case 54:
-			return "Keyboard Right Shift";
-		case 56:
-			return "Keyboard Left Alt";
-
-		case 256:
-			return "Mouse Left";
-		case 257:
-			return "Mouse Right";
-		case 258:
-			return "Mouse Middle";
-		case 259:
-			return "Mouse Button 3";
-		case 260:
-			return "Mouse Button 4";
-		case 261:
-			return "Mouse Button 5";
-		case 262:
-			return "Mouse Button 6";
-		case 263:
-			return "Mouse Button 7";
-
-		case 274:
-			return "Gamepad Left Shoulder";
-		case 275:
-			return "Gamepad Right Shoulder";
-		case 276:
-			return "Gamepad A";
-		case 277:
-			return "Gamepad B";
-		case 278:
-			return "Gamepad X";
-		case 279:
-			return "Gamepad Y";
-		case 280:
-			return "Gamepad Left Trigger";
-		case 281:
-			return "Gamepad Right Trigger";
-
-		default:
-			return "Code " + std::to_string(keyCode);
-		}
-	}
-
-	void DrawCombo(const char* label, std::uint32_t& value, const std::vector<KeyOption>& options, bool isModifier)
-	{
-		ImGuiMCP::TextUnformatted(label);
-		ImGuiMCP::SameLine(260.0f);
-
-		const std::string preview = KeyCodeToString(value, isModifier);
-
-		if (ImGuiMCP::BeginCombo(label, preview.c_str())) {
-			for (const auto& option : options) {
-				const bool selected = (value == option.code);
-				if (ImGuiMCP::Selectable(option.label, selected)) {
-					value = option.code;
-				}
-				if (selected) {
-					ImGuiMCP::SetItemDefaultFocus();
-				}
-			}
-			ImGuiMCP::EndCombo();
-		}
-	}
-
 	void ResetToDefaults(Settings::DualWieldParrying& config)
 	{
 		config.parryKey = 47;
-		config.parryKey2 = kDisabledKey;
-		config.modifier = kNoModifier;
-		config.modifier2 = kNoModifier;
+		config.parryKey2 = DualWieldParryingNG::InputCode::kDisabledKey;
+		config.modifier = DualWieldParryingNG::InputCode::kNoModifier;
+		config.modifier2 = DualWieldParryingNG::InputCode::kNoModifier;
 		config.allowBlockingDuringDialogue = false;
+		g_captureTarget.store(CaptureTarget::None);
+	}
+
+	void SetCapturedCode(CaptureTarget target, std::uint32_t code)
+	{
+		switch (target) {
+		case CaptureTarget::ParryKey:
+			g_menuState.pending.parryKey = code;
+			break;
+		case CaptureTarget::ParryKey2:
+			g_menuState.pending.parryKey2 = code;
+			break;
+		case CaptureTarget::Modifier:
+			g_menuState.pending.modifier = code;
+			break;
+		case CaptureTarget::Modifier2:
+			g_menuState.pending.modifier2 = code;
+			break;
+		case CaptureTarget::None:
+		default:
+			break;
+		}
+	}
+
+	bool __stdcall OnInput(RE::InputEvent* event)
+	{
+		const auto target = g_captureTarget.load();
+		if (target == CaptureTarget::None) {
+			return false;
+		}
+
+		for (auto* input = event; input; input = input->next) {
+			if (input->eventType != RE::INPUT_EVENT_TYPE::kButton) {
+				continue;
+			}
+
+			const auto* button = input->AsButtonEvent();
+			if (!button || !button->IsDown()) {
+				continue;
+			}
+
+			const auto code = DualWieldParryingNG::InputCode::FromButtonEvent(*button);
+			if (!code || !DualWieldParryingNG::InputCode::IsHoldable(*code)) {
+				continue;
+			}
+
+			if (button->device.get() == RE::INPUT_DEVICE::kKeyboard && *code == 1) {
+				g_captureTarget.store(CaptureTarget::None);
+				return true;
+			}
+
+			SetCapturedCode(target, *code);
+			g_captureTarget.store(CaptureTarget::None);
+			return true;
+		}
+
+		return false;
+	}
+
+	void DrawKeybindCapture(
+		const char* label,
+		const char* id,
+		CaptureTarget target,
+		std::uint32_t& value,
+		bool isModifier)
+	{
+		const auto activeTarget = g_captureTarget.load();
+		const bool isActive = activeTarget == target;
+		const std::string currentValue = DualWieldParryingNG::InputCode::ToString(value, isModifier);
+
+		ImGuiMCP::TextUnformatted(label);
+		ImGuiMCP::SameLine(180.0f);
+		ImGuiMCP::TextUnformatted(currentValue.c_str());
+		ImGuiMCP::SameLine(360.0f);
+
+		if (isActive) {
+			ImGuiMCP::TextDisabled("Waiting...");
+			ImGuiMCP::SameLine();
+
+			const std::string cancelLabel = std::string("Cancel##") + id;
+			if (ImGuiMCP::Button(cancelLabel.c_str())) {
+				g_captureTarget.store(CaptureTarget::None);
+			}
+			return;
+		}
+
+		const std::string buttonLabel = std::string("Select Keybind##") + id;
+		if (ImGuiMCP::Button(buttonLabel.c_str())) {
+			g_captureTarget.store(target);
+		}
 	}
 }
 
@@ -227,6 +149,10 @@ namespace UI
 
 		SKSEMenuFramework::SetSection("Dual Wield Parrying");
 		SKSEMenuFramework::AddSectionItem("Settings", DualWieldParrying::Render);
+
+		if (!g_inputEvent) {
+			g_inputEvent = SKSEMenuFramework::AddInputEvent(OnInput);
+		}
 
 		logger::info("Registered Dual Wield Parrying page with SKSE Menu Framework.");
 	}
@@ -253,18 +179,19 @@ namespace UI
 			ImGuiMCP::Spacing();
 
 			ImGuiMCP::TextUnformatted("Primary Keybind");
-			DrawCombo("Parry Key", config.parryKey, GetParryKeyOptions(), false);
+			DrawKeybindCapture("Parry Key", "ParryKey", CaptureTarget::ParryKey, config.parryKey, false);
 
 			ImGuiMCP::Spacing();
 
 			ImGuiMCP::TextUnformatted("Secondary Keybind");
-			DrawCombo("Parry Key 2", config.parryKey2, GetParryKeyOptions(), false);
+			DrawKeybindCapture("Parry Key 2", "ParryKey2", CaptureTarget::ParryKey2, config.parryKey2, false);
 
-			bool secondKeyDisabled = (config.parryKey2 >= kDisabledKey);
+			bool secondKeyDisabled = (config.parryKey2 >= DualWieldParryingNG::InputCode::kDisabledKey);
 			if (ImGuiMCP::Checkbox("Disable second keybind", &secondKeyDisabled)) {
 				if (secondKeyDisabled) {
-					config.parryKey2 = kDisabledKey;
-				} else if (config.parryKey2 >= kDisabledKey) {
+					config.parryKey2 = DualWieldParryingNG::InputCode::kDisabledKey;
+					g_captureTarget.store(CaptureTarget::None);
+				} else if (config.parryKey2 >= DualWieldParryingNG::InputCode::kDisabledKey) {
 					config.parryKey2 = 47;
 				}
 			}
@@ -276,17 +203,19 @@ namespace UI
 			ImGuiMCP::Spacing();
 
 			ImGuiMCP::TextUnformatted("Modifiers");
-			DrawCombo("Modifier", config.modifier, GetModifierOptions(), true);
-			DrawCombo("Modifier 2", config.modifier2, GetModifierOptions(), true);
+			DrawKeybindCapture("Modifier", "Modifier", CaptureTarget::Modifier, config.modifier, true);
+			DrawKeybindCapture("Modifier 2", "Modifier2", CaptureTarget::Modifier2, config.modifier2, true);
 
-			bool noModifier1 = (config.modifier >= kNoModifier);
+			bool noModifier1 = (config.modifier >= DualWieldParryingNG::InputCode::kNoModifier);
 			if (ImGuiMCP::Checkbox("No modifier for primary key", &noModifier1)) {
-				config.modifier = noModifier1 ? kNoModifier : 56;
+				config.modifier = noModifier1 ? DualWieldParryingNG::InputCode::kNoModifier : 56;
+				g_captureTarget.store(CaptureTarget::None);
 			}
 
-			bool noModifier2 = (config.modifier2 >= kNoModifier);
+			bool noModifier2 = (config.modifier2 >= DualWieldParryingNG::InputCode::kNoModifier);
 			if (ImGuiMCP::Checkbox("No modifier for secondary key", &noModifier2)) {
-				config.modifier2 = noModifier2 ? kNoModifier : 56;
+				config.modifier2 = noModifier2 ? DualWieldParryingNG::InputCode::kNoModifier : 56;
+				g_captureTarget.store(CaptureTarget::None);
 			}
 
 			ImGuiMCP::TextDisabled("Enable this if the parry key should work by itself.");

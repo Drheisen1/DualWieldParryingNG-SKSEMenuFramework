@@ -20,8 +20,7 @@ A version of the [Dual Wield Parrying SKSE](https://github.com/DennisSoemers/Dua
 
 - [Address Library for SKSE](https://www.nexusmods.com/skyrimspecialedition/mods/32444)
   - Needed for SSE/AE
-- [VR Address Library for SKSEVR](https://www.nexusmods.com/skyrimspecialedition/mods/58101)
-  - Needed for VR
+This fork targets Skyrim SE/AE only. VR support is intentionally disabled in the CMake presets.
 
 ## Register Visual Studio as a Generator
 
@@ -49,6 +48,6 @@ You can target different presets like this:
 * Change the `DualWieldParryingNGOutputDir"` value to match your desired outputs, if you want multiple folders you can separate them by `;` is shown in the template example
 
 When using custom preset you can call BuildRelease.bat with an parameter to specify which preset to configure eg:
-`.\BuildRelease.bat ALL-WITH-AUTO-DEPLOY`
+`.\BuildRelease.bat FLATRIM-WITH-AUTO-DEPLOY`
 
 When switching between different presets you might need to remove the build folder

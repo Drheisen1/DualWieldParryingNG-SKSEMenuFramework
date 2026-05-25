@@ -4,15 +4,31 @@
   "description": "",
   "license": "GPL-3.0",
   "dependencies": [
-    "fmt",
-    "directxtk",
-    "rapidcsv",
-    "spdlog",
-    "xbyak",
-    "catch2",
-    "magic-enum",
-    "nlohmann-json",
+    {
+      "name": "directxmath",
+      "version>=": "2025-04-03"
+    },
+    {
+      "name": "directxtk",
+      "version>=": "2025-10-27"
+    },
+    {
+      "name": "fmt",
+      "version>=": "12.1.0"
+    },
+    {
+      "name": "rapidcsv",
+      "version>=": "8.90"
+    },
+    {
+      "name": "spdlog",
+      "version>=": "1.16.0"
+    },
+    {
+      "name": "xbyak",
+      "version>=": "7.28"
+    },
     "clib-util"
   ],
-  "builtin-baseline": "46e4c4c78c347ded6add526b0c2bb66db35d4710"
+  "builtin-baseline": "ee12231b20c95013c6638d845d04c91559a1d1ff"
 }

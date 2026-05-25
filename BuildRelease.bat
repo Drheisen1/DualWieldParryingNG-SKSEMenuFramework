@@ -1,6 +1,6 @@
 @echo off
 
-set preset="ALL"
+set preset="FLATRIM"
 if NOT "%1" == "" (
     set preset=%1
 )

@@ -1,5 +1,6 @@
-#include <SKSE/SKSE.h>
 #include "InputEventHandler.h"
+
+#include "InputCode.h"
 
 using namespace DualWieldParryingNG;
 
@@ -14,6 +15,8 @@ RE::BSEventNotifyControl InputEventHandler::ProcessEvent(RE::InputEvent* const* 
     (void)a_eventSource;
 
     if (a_event) {
+        StopPluginBlockIfWeaponNotDrawn("weapon no longer drawn");
+
         const auto ui = RE::UI::GetSingleton();
         const auto settings = Settings::GetSingleton();
 
@@ -54,85 +57,34 @@ RE::BSEventNotifyControl InputEventHandler::ProcessEvent(RE::InputEvent* const* 
 
                                 for (auto ev = *a_event; ev != nullptr; ev = ev->next) {
                                     if (ev && ev->eventType == RE::INPUT_EVENT_TYPE::kButton) {
-                                        const auto buttonEvent = static_cast<RE::ButtonEvent*>(ev);
+                                        const auto buttonEvent = ev->AsButtonEvent();
                                         if (buttonEvent) {
-                                            auto keyCode = buttonEvent->GetIDCode();
+                                            const auto eventName =
+                                                controlMap->GetUserEventName(buttonEvent->GetIDCode(), buttonEvent->device.get());
 
-                                            if (buttonEvent->device.get() == RE::INPUT_DEVICE::kMouse) {
-                                                // key code 259 isn't real (it should be mouse button 3 but that's 258) - so we want to skip it
-												keyCode += 256 + int(keyCode >= 3);
-                                            } else if (buttonEvent->device.get() == RE::INPUT_DEVICE::kGamepad) {
-                                                RE::BSWin32GamepadDevice::Key gamepadKey =
-                                                    static_cast<RE::BSWin32GamepadDevice::Key>(keyCode);
-                                                switch (gamepadKey) {
-                                                    case RE::BSWin32GamepadDevice::Key::kUp:
-                                                        keyCode = 266;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kDown:
-                                                        keyCode = 267;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kLeft:
-                                                        keyCode = 268;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kRight:
-                                                        keyCode = 269;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kStart:
-                                                        keyCode = 270;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kBack:
-                                                        keyCode = 271;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kLeftThumb:
-                                                        keyCode = 272;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kRightThumb:
-                                                        keyCode = 273;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kLeftShoulder:
-                                                        keyCode = 274;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kRightShoulder:
-                                                        keyCode = 275;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kA:
-                                                        keyCode = 276;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kB:
-                                                        keyCode = 277;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kX:
-                                                        keyCode = 278;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kY:
-                                                        keyCode = 279;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kLeftTrigger:
-                                                        keyCode = 280;
-                                                        break;
-                                                    case RE::BSWin32GamepadDevice::Key::kRightTrigger:
-                                                        keyCode = 281;
-                                                        break;
-                                                    default:
-                                                        keyCode = static_cast<uint32_t>(-1);
-                                                        break;
-                                                }
+                                            if (pluginBlockingActive_.load() &&
+                                                eventName == RE::UserEvents::GetSingleton()->readyWeapon &&
+                                                (buttonEvent->IsDown() || buttonEvent->IsHeld())) {
+                                                StopPluginBlock("ready weapon pressed");
+                                                continue;
+                                            }
+
+                                            const auto keyCode = InputCode::FromButtonEvent(*buttonEvent);
+                                            if (!keyCode) {
+                                                continue;
                                             }
 
                                             bool mainKeyPressed = false;
                                             uint32_t requiredModifierKey = 10000;
-                                            if (keyCode == parryKey) {
+                                            if (*keyCode == parryKey) {
                                                 mainKeyPressed = true;
                                                 requiredModifierKey = modifierKey;
-                                            } else if (keyCode == parryKey2) {
+                                            } else if (*keyCode == parryKey2) {
                                                 mainKeyPressed = true;
                                                 requiredModifierKey = modifierKey2;
                                             }
 
                                             if (mainKeyPressed) {
-                                                const auto eventName = 
-                                                    controlMap->GetUserEventName(buttonEvent->GetIDCode(), buttonEvent->device.get());
-
                                                 if (eventName == RE::UserEvents::GetSingleton()->leftAttack) {
                                                     // Special case for when the Dual Wield Parrying block key is exactly
                                                     // the same as the left-attack key for the game engine.
@@ -156,6 +108,7 @@ RE::BSEventNotifyControl InputEventHandler::ProcessEvent(RE::InputEvent* const* 
                                                     playerState->actorState2.wantBlocking = 1;
                                                     if (!isBlocking) {
                                                         playerCharacter->NotifyAnimationGraph("blockStart");
+                                                        pluginBlockingActive_.store(true);
                                                     }
                                                 } else if (buttonEvent->IsUp()) {
                                                     // Player wants to stop blocking
@@ -163,6 +116,7 @@ RE::BSEventNotifyControl InputEventHandler::ProcessEvent(RE::InputEvent* const* 
                                                     if (isBlocking) {
                                                         playerCharacter->NotifyAnimationGraph("blockStop");
                                                     }
+                                                    pluginBlockingActive_.store(false);
                                                 }
                                             }
                                         }
@@ -180,22 +134,65 @@ RE::BSEventNotifyControl InputEventHandler::ProcessEvent(RE::InputEvent* const* 
     return RE::BSEventNotifyControl::kContinue;
 }
 
-bool InputEventHandler::IsModifierKeyPressed(uint32_t modifierKey) const {
-    if (modifierKey >= 300) {
-        return true;
+RE::BSEventNotifyControl InputEventHandler::ProcessEvent(
+    const RE::MenuOpenCloseEvent* a_event,
+    RE::BSTEventSource<RE::MenuOpenCloseEvent>* a_eventSource)
+{
+    (void)a_eventSource;
+
+    if (!a_event || !a_event->opening || !pluginBlockingActive_.load()) {
+        return RE::BSEventNotifyControl::kContinue;
     }
 
-    if (modifierKey < 255) {
-        // Keyboard
-        auto keyboard = RE::BSInputDeviceManager::GetSingleton()->GetKeyboard();
-        return (!keyboard || keyboard->IsPressed(modifierKey));
-    } else if (modifierKey < 266) {
-        // Mouse
-        auto mouse = RE::BSInputDeviceManager::GetSingleton()->GetMouse();
-        return (!mouse || mouse->IsPressed(modifierKey));
-    } else {
-        // Gamepad
-        auto gamepad = RE::BSInputDeviceManager::GetSingleton()->GetGamepad();
-        return (!gamepad || gamepad->IsPressed(modifierKey - 265));
+    const auto* interfaceStrings = RE::InterfaceStrings::GetSingleton();
+    if (interfaceStrings && a_event->menuName == interfaceStrings->dialogueMenu) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+    StopPluginBlock(std::format("menu opened: {}", a_event->menuName.c_str()));
+    return RE::BSEventNotifyControl::kContinue;
+}
+
+bool InputEventHandler::IsModifierKeyPressed(uint32_t modifierKey) const {
+    return InputCode::IsPressed(modifierKey);
+}
+
+void InputEventHandler::StopPluginBlock(std::string_view a_reason)
+{
+    pluginBlockingActive_.store(false);
+
+    const auto playerCharacter = RE::PlayerCharacter::GetSingleton();
+    if (!playerCharacter) {
+        logger::trace("Cleared Dual Wield Parrying block state without player: {}", a_reason);
+        return;
+    }
+
+    const auto playerState = playerCharacter->AsActorState();
+    if (playerState) {
+        playerState->actorState2.wantBlocking = 0;
+    }
+
+    bool isBlocking = false;
+    if (playerCharacter->GetGraphVariableBool("IsBlocking", isBlocking) && isBlocking) {
+        playerCharacter->NotifyAnimationGraph("blockStop");
+    }
+
+    logger::trace("Cleared Dual Wield Parrying block state: {}", a_reason);
+}
+
+void InputEventHandler::StopPluginBlockIfWeaponNotDrawn(std::string_view a_reason)
+{
+    if (!pluginBlockingActive_.load()) {
+        return;
+    }
+
+    const auto playerCharacter = RE::PlayerCharacter::GetSingleton();
+    const auto playerState = playerCharacter ? playerCharacter->AsActorState() : nullptr;
+    if (!playerState) {
+        return;
+    }
+
+    if (playerState->GetWeaponState() != RE::WEAPON_STATE::kDrawn) {
+        StopPluginBlock(a_reason);
     }
 }

@@ -1,4 +1,5 @@
-#define DLLEXPORT __declspec(dllexport)
+#include "PCH.h"
+
 #include "InputEventHandler.h"
 #include "UI.h"
 
@@ -35,10 +36,19 @@ void InitializeEventHandler()
 
 	auto inputDeviceManager = RE::BSInputDeviceManager::GetSingleton();
 	if (inputDeviceManager) {
-		inputDeviceManager->AddEventSink(&DualWieldParryingNG::InputEventHandler::GetSingleton());
-		spdlog::trace("Event sink initialized.");
+		auto& inputEventHandler = DualWieldParryingNG::InputEventHandler::GetSingleton();
+		inputDeviceManager->AddEventSink(static_cast<RE::BSTEventSink<RE::InputEvent*>*>(std::addressof(inputEventHandler)));
+
+		if (const auto ui = RE::UI::GetSingleton()) {
+			ui->AddEventSink<RE::MenuOpenCloseEvent>(
+				static_cast<RE::BSTEventSink<RE::MenuOpenCloseEvent>*>(std::addressof(inputEventHandler)));
+		} else {
+			util::report_and_fail("Failed to initialize menu event sink.");
+		}
+
+		spdlog::trace("Event sinks initialized.");
 	} else {
-		stl::report_and_fail("Failed to initialize event sink.");
+		util::report_and_fail("Failed to initialize event sink.");
 	}
 }
 
@@ -50,7 +60,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 	}
 }
 
-extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
+SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
 	InitializeLog();
 	logger::info("Loaded plugin {} {}", Plugin::NAME, Plugin::VERSION.string());
@@ -60,23 +70,11 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	} catch (...) {
 		logger::error("Exception caught when loading settings! Default settings will be used");
 	}
-	SKSE::GetMessagingInterface()->RegisterListener(MessageHandler);
-	return true;
-}
+	const auto messaging = SKSE::GetMessagingInterface();
+	if (!messaging || !messaging->RegisterListener(MessageHandler)) {
+		logger::critical("Failed to register SKSE messaging listener.");
+		return false;
+	}
 
-extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() noexcept {
-	SKSE::PluginVersionData v;
-	v.PluginName(Plugin::NAME.data());
-	v.PluginVersion(Plugin::VERSION);
-	v.UsesAddressLibrary(true);
-	v.HasNoStructUse();
-	return v;
-}();
-
-extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Query(const SKSE::QueryInterface*, SKSE::PluginInfo* pluginInfo)
-{
-	pluginInfo->name = SKSEPlugin_Version.pluginName;
-	pluginInfo->infoVersion = SKSE::PluginInfo::kVersion;
-	pluginInfo->version = SKSEPlugin_Version.pluginVersion;
 	return true;
 }

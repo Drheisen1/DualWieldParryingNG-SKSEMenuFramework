@@ -2,14 +2,14 @@
 	"version": 3,
 	"configurePresets": [
 		{
-			"name": "ALL-WITH-AUTO-DEPLOYMENT",
+			"name": "FLATRIM-WITH-AUTO-DEPLOYMENT",
 			"cacheVariables": {
 				"AUTO_PLUGIN_DEPLOYMENT": "ON"
 			},
 			"environment": {
 				"DualWieldParryingNGOutputDir": "C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data"
 			},
-			"inherits": "ALL"
+			"inherits": "FLATRIM"
 		}
 	]
 }

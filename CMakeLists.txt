@@ -8,8 +8,6 @@ project(
 
 message(STATUS "Using toolchain file: ${CMAKE_TOOLCHAIN_FILE}")
 
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-
 # ########################################################################################################################
 # ## Build options
 # ########################################################################################################################
@@ -22,17 +20,35 @@ message(STATUS "\tZip to dist: ${ZIP_TO_DIST}")
 message(STATUS "\tAIO Zip to dist: ${AIO_ZIP_TO_DIST}")
 
 # #######################################################################################################################
-# # Add CMake features
+# # CommonLibSSE NG / CommonLibVR
 # #######################################################################################################################
-include(XSEPlugin)
+set(COMMONLIBSSE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/extern/CommonLibSSE-NG" CACHE PATH "Path to CommonLibVR ng checkout")
+
+set(BUILD_TESTS OFF CACHE BOOL "Do not build CommonLib tests for this plugin" FORCE)
+set(ENABLE_SKYRIM_SE ON CACHE BOOL "Enable Skyrim SE support")
+set(ENABLE_SKYRIM_AE ON CACHE BOOL "Enable Skyrim AE support")
+set(ENABLE_SKYRIM_VR OFF CACHE BOOL "Disable Skyrim VR support for this SE/AE plugin" FORCE)
+set(SKSE_SUPPORT_XBYAK ON CACHE BOOL "Enable CommonLib trampoline support")
+
+add_subdirectory("${COMMONLIBSSE_SOURCE_DIR}" CommonLibSSE EXCLUDE_FROM_ALL)
+include("${COMMONLIBSSE_SOURCE_DIR}/cmake/CommonLibSSE.cmake")
 
 # #######################################################################################################################
 # # Find dependencies
 # #######################################################################################################################
-find_package(magic_enum CONFIG REQUIRED)
-find_package(xbyak CONFIG REQUIRED)
-find_package(nlohmann_json CONFIG REQUIRED)
 find_path(CLIB_UTIL_INCLUDE_DIRS "ClibUtil/utils.hpp" REQUIRED)
+
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Plugin.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/Plugin.h
+    @ONLY
+)
+
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.rc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/Version.rc
+    @ONLY
+)
 
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/include/Settings.in.h
@@ -46,22 +62,43 @@ configure_file(
     @ONLY
 )
 
-target_sources(
+set(PLUGIN_SOURCES
+    src/XSEPlugin.cpp
+    src/InputCode.cpp
+    src/InputDeviceStubs.cpp
+    src/InputEventHandler.cpp
+    src/Settings.cpp
+    src/UI.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/Plugin.h
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/Version.rc
+)
+
+add_commonlibsse_plugin(
+    ${PROJECT_NAME}
+    AUTHOR "Dual Wield Parrying NG Contributors"
+    USE_ADDRESS_LIBRARY
+    SOURCES ${PLUGIN_SOURCES}
+)
+
+target_compile_features(
     ${PROJECT_NAME}
     PRIVATE
-        src/XSEPlugin.cpp
-        src/InputEventHandler.cpp
-        src/Settings.cpp
-        src/DummyBSInputDevice.cpp
-        src/DummyBSIInputDevice.cpp
-        src/DummyBSWin32KeyboardDevice.cpp
-        src/DummyBSKeyboardDevice.cpp
-		src/UI.cpp
+        cxx_std_23
+)
+
+target_precompile_headers(
+    ${PROJECT_NAME}
+    PRIVATE
+        src/PCH.h
 )
 
 target_include_directories(
     ${PROJECT_NAME}
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CLIB_UTIL_INCLUDE_DIRS}
 )
 
@@ -72,13 +109,20 @@ target_compile_definitions(
         _UNICODE
 )
 
-target_link_libraries(
-    ${PROJECT_NAME}
-    PRIVATE
-        magic_enum::magic_enum
-        xbyak::xbyak
-        nlohmann_json::nlohmann_json
-)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF)
+
+if(MSVC)
+    target_compile_options(
+        ${PROJECT_NAME}
+        PRIVATE
+            /MP
+            /W4
+            /permissive-
+            /Zc:preprocessor
+    )
+endif()
 
 # https://gitlab.kitware.com/cmake/cmake/-/issues/24922#note_1371990
 if(MSVC_VERSION GREATER_EQUAL 1936)
